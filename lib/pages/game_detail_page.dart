@@ -1,9 +1,38 @@
 import 'package:flutter/material.dart';
+import '../constants/preset_tags.dart';
 import '../models/game_entry.dart';
 import '../widgets/resources_editor.dart';
 
 String _formatDate(DateTime date) {
   return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+}
+
+String _recText(int? v) {
+  return switch (v) {
+    3 => '👍 推荐',
+    2 => '🙂 还行',
+    1 => '👎 不推荐',
+    _ => '-',
+  };
+}
+
+String _spendingText(int? v) {
+  return switch (v) {
+    0 => '🆓 零氪',
+    1 => '☕ 微氪',
+    2 => '💰 中氪',
+    3 => '🐳 重氪',
+    _ => '-',
+  };
+}
+
+String _barrierText(int? v) {
+  return switch (v) {
+    0 => '随时可回',
+    1 => '需要适应一阵',
+    2 => '基本回不来了',
+    _ => '-',
+  };
 }
 
 class GameDetailPage extends StatefulWidget {
@@ -29,6 +58,12 @@ class _GameDetailPageState extends State<GameDetailPage> {
   DateTime? _lastPlayed;
   bool _isRetired = false;
 
+  List<String> _tags = [];
+  int? _recommendation;
+  int? _spending;
+  int? _returnBarrier;
+  late TextEditingController _tagInputController;
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +81,11 @@ class _GameDetailPageState extends State<GameDetailPage> {
     _notesController = TextEditingController(text: _game.notes ?? '');
     _lastPlayed = _game.lastPlayed;
     _isRetired = _game.isRetired;
+    _tags = List.from(_game.tags);
+    _recommendation = _game.recommendation;
+    _spending = _game.spending;
+    _returnBarrier = _game.returnBarrier;
+    _tagInputController = TextEditingController();
   }
 
   @override
@@ -57,6 +97,7 @@ class _GameDetailPageState extends State<GameDetailPage> {
     _playHoursController.dispose();
     _progressController.dispose();
     _notesController.dispose();
+    _tagInputController.dispose();
     super.dispose();
   }
 
@@ -79,6 +120,19 @@ class _GameDetailPageState extends State<GameDetailPage> {
     _game.isRetired = _isRetired;
     _game.progress = _progressController.text.trim().isEmpty ? null : _progressController.text.trim();
     _game.notes = _notesController.text.trim().isEmpty ? null : _notesController.text.trim();
+    _game.tags = List.from(_tags);
+    _game.recommendation = _recommendation;
+    _game.spending = _spending;
+    _game.returnBarrier = _returnBarrier;
+  }
+
+  void _addCustomTag() {
+    final t = _tagInputController.text.trim();
+    if (t.isEmpty || _tags.contains(t)) return;
+    setState(() {
+      _tags.add(t);
+      _tagInputController.clear();
+    });
   }
 
   Future<void> _pickDate() async {
@@ -149,26 +203,14 @@ class _GameDetailPageState extends State<GameDetailPage> {
     );
   }
 
+  // ── view mode ─────────────────────────────────────────────────────
+
   Widget _buildViewMode() {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        if (_game.isRetired)
-          Card(
-            color: Colors.grey[200],
-            child: const Padding(
-              padding: EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Icon(Icons.bedtime, color: Colors.grey),
-                  SizedBox(width: 8),
-                  Text('已退坑', style: TextStyle(color: Colors.grey, fontSize: 15)),
-                ],
-              ),
-            ),
-          ),
+        if (_game.isRetired) _retiredBanner(),
 
-        // 基本信息
         _sectionLabel('基本信息'),
         const SizedBox(height: 8),
         Card(
@@ -187,7 +229,6 @@ class _GameDetailPageState extends State<GameDetailPage> {
           ),
         ),
 
-        // 账号数据
         const SizedBox(height: 20),
         _sectionLabel('账号数据'),
         const SizedBox(height: 8),
@@ -212,7 +253,35 @@ class _GameDetailPageState extends State<GameDetailPage> {
           ),
         ),
 
-        // 游戏状态
+        const SizedBox(height: 20),
+        _sectionLabel('主观评价'),
+        const SizedBox(height: 8),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _infoRow('推荐度', _recText(_game.recommendation)),
+                const Divider(height: 20),
+                _infoRow('氪金程度', _spendingText(_game.spending)),
+                const Divider(height: 20),
+                _infoRow('回流阻力', _barrierText(_game.returnBarrier)),
+                if (_game.tags.isNotEmpty) ...[
+                  const Divider(height: 20),
+                  const Text('标签', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: _game.tags.map((t) => Chip(label: Text(t, style: const TextStyle(fontSize: 13)))).toList(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+
         const SizedBox(height: 20),
         _sectionLabel('游戏状态'),
         const SizedBox(height: 8),
@@ -228,7 +297,6 @@ class _GameDetailPageState extends State<GameDetailPage> {
           ),
         ),
 
-        // 其他
         const SizedBox(height: 20),
         _sectionLabel('其他'),
         const SizedBox(height: 8),
@@ -249,6 +317,24 @@ class _GameDetailPageState extends State<GameDetailPage> {
       ],
     );
   }
+
+  Widget _retiredBanner() {
+    return Card(
+      color: Colors.grey[200],
+      child: const Padding(
+        padding: EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Icon(Icons.bedtime, color: Colors.grey),
+            SizedBox(width: 8),
+            Text('已退坑', style: TextStyle(color: Colors.grey, fontSize: 15)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── edit mode ─────────────────────────────────────────────────────
 
   Widget _buildEditMode() {
     return SingleChildScrollView(
@@ -306,6 +392,30 @@ class _GameDetailPageState extends State<GameDetailPage> {
           ResourcesEditor(game: _game, enabled: true),
 
           const SizedBox(height: 24),
+          _sectionLabel('主观评价'),
+          const SizedBox(height: 8),
+          _buildTagEditor(),
+          const SizedBox(height: 20),
+          _buildChoiceField('推荐度', {
+            3: '👍 推荐',
+            2: '🙂 还行',
+            1: '👎 不推荐',
+          }, _recommendation, (v) => setState(() => _recommendation = v)),
+          const SizedBox(height: 16),
+          _buildChoiceField('氪金程度', {
+            0: '🆓 零氪',
+            1: '☕ 微氪',
+            2: '💰 中氪',
+            3: '🐳 重氪',
+          }, _spending, (v) => setState(() => _spending = v)),
+          const SizedBox(height: 16),
+          _buildChoiceField('回流阻力', {
+            0: '随时可回',
+            1: '需要适应一阵',
+            2: '基本回不来了',
+          }, _returnBarrier, (v) => setState(() => _returnBarrier = v)),
+
+          const SizedBox(height: 24),
           _sectionLabel('游戏状态'),
           const SizedBox(height: 8),
           Row(
@@ -344,6 +454,91 @@ class _GameDetailPageState extends State<GameDetailPage> {
       ),
     );
   }
+
+  Widget _buildTagEditor() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('标签', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final t in presetTags)
+              FilterChip(
+                label: Text(t, style: const TextStyle(fontSize: 13)),
+                selected: _tags.contains(t),
+                onSelected: (sel) {
+                  setState(() {
+                    if (sel) {
+                      _tags.add(t);
+                    } else {
+                      _tags.remove(t);
+                    }
+                  });
+                },
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            for (final t in _tags.where((t) => !presetTags.contains(t)))
+              InputChip(
+                label: Text(t, style: const TextStyle(fontSize: 13)),
+                onDeleted: () => setState(() => _tags.remove(t)),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _tagInputController,
+                decoration: const InputDecoration(
+                  hintText: '自定义标签...',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                onSubmitted: (_) => _addCustomTag(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              onPressed: _addCustomTag,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChoiceField(
+      String label, Map<int, String> options, int? value, ValueChanged<int?> onChanged) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: options.entries.map((e) {
+            return ChoiceChip(
+              label: Text(e.value, style: const TextStyle(fontSize: 13)),
+              selected: value == e.key,
+              onSelected: (sel) => onChanged(sel ? e.key : null),
+              visualDensity: VisualDensity.compact,
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  // ── shared helpers ────────────────────────────────────────────────
 
   Widget _sectionLabel(String text) {
     return Text(

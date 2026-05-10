@@ -17,6 +17,11 @@ class GameEntry {
   String? progress;
   String? notes;
 
+  List<String> tags;
+  int? recommendation;
+  int? spending;
+  int? returnBarrier;
+
   GameEntry({
     required this.name,
     this.totalPlayHours,
@@ -29,9 +34,14 @@ class GameEntry {
     Map<String, dynamic>? resources,
     this.progress,
     this.notes,
+    List<String>? tags,
+    this.recommendation,
+    this.spending,
+    this.returnBarrier,
   })  : id = _generateId(),
         addedDate = addedDate ?? DateTime.now(),
-        resources = resources ?? {};
+        resources = resources ?? {},
+        tags = tags ?? [];
 
   GameEntry._withId({
     required this.id,
@@ -46,7 +56,12 @@ class GameEntry {
     Map<String, dynamic>? resources,
     this.progress,
     this.notes,
-  }) : resources = resources ?? {};
+    List<String>? tags,
+    this.recommendation,
+    this.spending,
+    this.returnBarrier,
+  }) : resources = resources ?? {},
+        tags = tags ?? [];
 
   static String _generateId() {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
@@ -68,6 +83,10 @@ class GameEntry {
       'resources': resources,
       'progress': progress,
       'notes': notes,
+      'tags': tags,
+      'recommendation': recommendation,
+      'spending': spending,
+      'returnBarrier': returnBarrier,
     };
   }
 
@@ -87,6 +106,10 @@ class GameEntry {
       resources: (json['resources'] as Map<String, dynamic>?) ?? {},
       progress: json['progress'] as String?,
       notes: json['notes'] as String?,
+      tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
+      recommendation: json['recommendation'] as int?,
+      spending: json['spending'] as int?,
+      returnBarrier: json['returnBarrier'] as int?,
     );
   }
 }

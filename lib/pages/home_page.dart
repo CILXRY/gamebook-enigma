@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/game_entry.dart';
 import '../services/storage_service.dart';
+import 'add_game_page.dart';
 import 'game_detail_page.dart';
 
 String _formatDate(DateTime date) {
@@ -34,40 +35,17 @@ class _HomePageState extends State<HomePage> {
     await StorageService.saveGames(_games);
   }
 
-  void _addGame() {
-    final nameController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('添加游戏'),
-        content: TextField(
-          controller: nameController,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: '输入游戏名称',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final name = nameController.text.trim();
-              if (name.isEmpty) return;
-              setState(() {
-                _games.add(GameEntry(name: name));
-              });
-              _saveGames();
-              Navigator.pop(ctx);
-            },
-            child: const Text('确定'),
-          ),
-        ],
-      ),
+  Future<void> _addGame() async {
+    final game = await Navigator.push<GameEntry>(
+      context,
+      MaterialPageRoute(builder: (_) => const AddGamePage()),
     );
+    if (game != null) {
+      setState(() {
+        _games.add(game);
+      });
+      _saveGames();
+    }
   }
 
   Future<void> _openDetail(GameEntry game) async {
@@ -234,6 +212,18 @@ class _GameCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 4),
+                    if (game.tags.isNotEmpty)
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 2,
+                        children: game.tags.take(3).map((t) => Chip(
+                              label: Text(t, style: const TextStyle(fontSize: 11)),
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+                            )).toList(),
+                      ),
                     Text(
                       [
                         if (game.server != null) game.server!,
