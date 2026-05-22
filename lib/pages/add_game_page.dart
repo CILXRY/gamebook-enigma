@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import '../constants/preset_tags.dart';
 import '../models/account_info.dart';
 import '../models/android_package_model.dart';
 import '../models/game_atom_model.dart';
 import '../models/game_entry.dart';
+import '../models/sentence_template.dart';
+import '../models/tag_fill.dart';
 import '../services/package_info_service.dart';
+import '../services/storage_service.dart';
 import '../widgets/resources_editor.dart';
 
 String _formatDate(DateTime date) {
@@ -29,7 +31,9 @@ class _AddGamePageState extends State<AddGamePage> {
   DateTime? _lastPlayed;
   bool _isRetired = false;
 
-  final _tags = <String>[];
+  final _tagFills = <TagFill>[];
+  List<SentenceTemplate> _templates = [];
+  List<String> _presetTags = [];
   int? _recommendation;
   int? _spending;
   int? _returnBarrier;
@@ -38,6 +42,59 @@ class _AddGamePageState extends State<AddGamePage> {
 
   AndroidPackageModel? _linkedPackage;
   Map<String, dynamic> _resources = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTemplates();
+  }
+
+  Future<void> _loadTemplates() async {
+    final templates = await StorageService.loadSentenceTemplates();
+    final presetTags = await StorageService.loadPresetTags();
+    if (!mounted) return;
+    setState(() {
+      _templates = templates;
+      _presetTags = presetTags;
+    });
+  }
+
+  TagFill? _findFill(String sentenceKey) {
+    try {
+      return _tagFills.firstWhere((tf) => tf.sentenceKey == sentenceKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _toggleTemplate(SentenceTemplate tmpl, bool enabled) {
+    setState(() {
+      if (enabled) {
+        _tagFills.add(TagFill(sentenceKey: tmpl.key, tag: _presetTags.isNotEmpty ? _presetTags.first : ''));
+      } else {
+        _tagFills.removeWhere((tf) => tf.sentenceKey == tmpl.key);
+      }
+    });
+  }
+
+  void _setTag(String sentenceKey, String tag) {
+    setState(() {
+      final existing = _findFill(sentenceKey);
+      if (existing != null) {
+        existing.tag = tag;
+      }
+    });
+  }
+
+  void _addCustomTag() {
+    final t = _tagInputController.text.trim();
+    if (t.isEmpty || _presetTags.contains(t)) return;
+    setState(() {
+      _presetTags.add(t);
+      _tagInputController.clear();
+    });
+    StorageService.savePresetTags(_presetTags);
+  }
 
   @override
   void dispose() {
@@ -50,15 +107,6 @@ class _AddGamePageState extends State<AddGamePage> {
     _notesController.dispose();
     _tagInputController.dispose();
     super.dispose();
-  }
-
-  void _addCustomTag() {
-    final t = _tagInputController.text.trim();
-    if (t.isEmpty || _tags.contains(t)) return;
-    setState(() {
-      _tags.add(t);
-      _tagInputController.clear();
-    });
   }
 
   Future<void> _pickDate() async {
@@ -128,7 +176,7 @@ class _AddGamePageState extends State<AddGamePage> {
       progress:
           _progressController.text.trim().isEmpty ? null : _progressController.text.trim(),
       notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
-      tags: List.from(_tags),
+      tagFills: List.from(_tagFills),
       recommendation: _recommendation,
       returnBarrier: _returnBarrier,
       linkedPackageName: _linkedPackage?.packageName,
@@ -261,7 +309,7 @@ class _AddGamePageState extends State<AddGamePage> {
             const SizedBox(height: 24),
             _sectionLabel('主观评价'),
             const SizedBox(height: 8),
-            _buildTagEditor(),
+            _buildFillEditor(),
             const SizedBox(height: 20),
             _buildChoiceField('推荐度', {
               3: '👍 推荐',
@@ -353,42 +401,14 @@ class _AddGamePageState extends State<AddGamePage> {
     );
   }
 
-  Widget _buildTagEditor() {
+  Widget _buildFillEditor() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('标签',
+        const Text('选词填空',
             style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            for (final t in presetTags)
-              FilterChip(
-                label: Text(t, style: const TextStyle(fontSize: 13)),
-                selected: _tags.contains(t),
-                onSelected: (sel) {
-                  setState(() {
-                    if (sel) {
-                      _tags.add(t);
-                    } else {
-                      _tags.remove(t);
-                    }
-                  });
-                },
-                visualDensity: VisualDensity.compact,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            for (final t in _tags.where((t) => !presetTags.contains(t)))
-              InputChip(
-                label: Text(t, style: const TextStyle(fontSize: 13)),
-                onDeleted: () => setState(() => _tags.remove(t)),
-                visualDensity: VisualDensity.compact,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-          ],
-        ),
+        ..._templates.map((tmpl) => _buildTemplateRow(tmpl)),
         const SizedBox(height: 8),
         Row(
           children: [
@@ -406,11 +426,75 @@ class _AddGamePageState extends State<AddGamePage> {
             const SizedBox(width: 8),
             IconButton(
               icon: const Icon(Icons.add_circle_outline),
+              tooltip: '添加自定义标签到预设库',
               onPressed: _addCustomTag,
             ),
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildTemplateRow(SentenceTemplate tmpl) {
+    final fill = _findFill(tmpl.key);
+    final isEnabled = fill != null;
+    final selectedTag = fill?.tag ?? '';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Checkbox(
+            value: isEnabled,
+            onChanged: (v) => _toggleTemplate(tmpl, v ?? false),
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          Expanded(
+            child: isEnabled ? _buildFilledSentence(tmpl, selectedTag) : Text(
+              tmpl.format,
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilledSentence(SentenceTemplate tmpl, String selectedTag) {
+    final parts = tmpl.format.split('{tag}');
+    return Row(
+      children: [
+        if (parts.isNotEmpty)
+          Text(parts[0], style: const TextStyle(fontSize: 14)),
+        _tagSelector(tmpl.key, selectedTag),
+        if (parts.length > 1)
+          Flexible(
+            child: Text(parts[1], style: const TextStyle(fontSize: 14)),
+          ),
+      ],
+    );
+  }
+
+  Widget _tagSelector(String sentenceKey, String currentTag) {
+    return PopupMenuButton<String>(
+      offset: const Offset(0, 32),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onSelected: (tag) => _setTag(sentenceKey, tag),
+      child: Chip(
+        label: Text(currentTag.isEmpty ? '选择标签' : currentTag,
+            style: const TextStyle(fontSize: 12)),
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+        labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+      ),
+      itemBuilder: (context) => _presetTags.map((t) => PopupMenuItem<String>(
+            value: t,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Text(t, style: const TextStyle(fontSize: 14)),
+          )).toList(),
     );
   }
 

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../models/game_entry.dart';
+import '../models/sentence_template.dart';
 import '../services/storage_service.dart';
 import '../services/package_info_service.dart';
 import 'add_game_page.dart';
@@ -22,6 +23,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   List<GameEntry> _games = [];
+  List<SentenceTemplate> _templates = [];
 
   @override
   void initState() {
@@ -31,13 +33,37 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadGames() async {
     final games = await StorageService.loadGames();
+    final templates = await StorageService.loadSentenceTemplates();
     setState(() {
       _games = games;
+      _templates = templates;
     });
   }
 
   Future<void> _saveGames() async {
     await StorageService.saveGames(_games);
+  }
+
+  String _tagFillsSummary(GameEntry game) {
+    final result = <String>[];
+    for (final tf in game.tagFills) {
+      if (tf.tag.isEmpty) continue;
+      final tmpl = _templateByKey(tf.sentenceKey);
+      if (tmpl != null) {
+        result.add(tmpl.render(tf.tag));
+      } else {
+        result.add(tf.tag);
+      }
+    }
+    return result.join(' · ');
+  }
+
+  SentenceTemplate? _templateByKey(String key) {
+    try {
+      return _templates.firstWhere((t) => t.key == key);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _addGame() async {
@@ -114,7 +140,7 @@ class _HomePageState extends State<HomePage> {
       _saveGames();
     } else {
       _saveGames();
-      setState(() {});
+      _loadGames();
     }
   }
 
@@ -224,6 +250,7 @@ class _HomePageState extends State<HomePage> {
                 _buildOverviewCard(),
                 ..._games.map((game) => _GameCard(
                       game: game,
+                      tagSummary: _tagFillsSummary(game),
                       onTap: () => _openDetail(game),
                       onLongPress: () => _deleteGame(game),
                     )),
@@ -272,11 +299,13 @@ class _AppIcon extends StatelessWidget {
 
 class _GameCard extends StatelessWidget {
   final GameEntry game;
+  final String tagSummary;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
   const _GameCard({
     required this.game,
+    required this.tagSummary,
     required this.onTap,
     required this.onLongPress,
   });
@@ -349,17 +378,15 @@ class _GameCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    if (game.tags.isNotEmpty)
-                      Wrap(
-                        spacing: 4,
-                        runSpacing: 2,
-                        children: game.tags.take(3).map((t) => Chip(
-                              label: Text(t, style: const TextStyle(fontSize: 11)),
-                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
-                              padding: EdgeInsets.zero,
-                              labelPadding: const EdgeInsets.symmetric(horizontal: 6),
-                            )).toList(),
+                    if (tagSummary.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          tagSummary,
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     Text(
                       [

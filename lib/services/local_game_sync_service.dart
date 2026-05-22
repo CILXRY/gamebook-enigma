@@ -1,6 +1,7 @@
 import '../models/app_usage_stats.dart';
 import '../models/game_entry.dart';
 import 'usage_stats_service.dart';
+import 'package_info_service.dart';
 
 class LocalGameSyncService {
   static Future<List<GameEntry>> syncAllLinked(List<GameEntry> games) async {
@@ -9,6 +10,8 @@ class LocalGameSyncService {
     for (final s in allStats) {
       statsByPackage[s.packageName] = s;
     }
+
+    final permissionGranted = await PackageInfoService.isUsagePermissionGranted();
 
     for (final game in games) {
       if (game.linkedPackageName == null) continue;
@@ -20,6 +23,10 @@ class LocalGameSyncService {
       }
       if (stats.lastTimeUsed > 0) {
         game.gameLastLaunched = DateTime.fromMillisecondsSinceEpoch(stats.lastTimeUsed);
+      }
+
+      if (permissionGranted && stats.totalTimeForegroundMs == 0) {
+        game.isRetired = true;
       }
     }
 
@@ -45,6 +52,12 @@ class LocalGameSyncService {
     }
     if (latestUsed > 0) {
       game.gameLastLaunched = DateTime.fromMillisecondsSinceEpoch(latestUsed);
+    }
+
+    if (game.linkedPackageName != null &&
+        await PackageInfoService.isUsagePermissionGranted() &&
+        totalMs == 0) {
+      game.isRetired = true;
     }
 
     return game;

@@ -1,16 +1,16 @@
 import 'game_atom_model.dart';
 import 'account_info.dart';
+import 'tag_fill.dart';
 import 'mihoyo/hoyo_game_profile.dart';
 
 class GameEntry extends GameAtomModel {
-  // --- GameEntry Specific Fields ---
   bool isRetired;
 
   AccountInfo? accountInfo;
 
   String? progress;
 
-  List<String> tags;
+  List<TagFill> tagFills;
   int? recommendation;
   int? returnBarrier;
 
@@ -19,26 +19,23 @@ class GameEntry extends GameAtomModel {
   String? linkedPackageName;
 
   GameEntry({
-    // 基类字段通过 super 传递
     super.gameId,
     super.gameAddedInTime,
-    required super.gameName, // 对应原来的 name
-    super.gameLastLaunched, // 对应原来的 lastPlayed
-    super.gamePlayedSeconds, // 对应原来的 totalPlayHours
+    required super.gameName,
+    super.gameLastLaunched,
+    super.gamePlayedSeconds,
     super.notes,
 
-    // 子类字段
     this.isRetired = false,
     this.accountInfo,
     this.progress,
-    List<String>? tags,
+    List<TagFill>? tagFills,
     this.recommendation,
     this.returnBarrier,
     this.hoyoProfile,
     this.linkedPackageName,
-  }) : tags = tags ?? [];
+  }) : tagFills = tagFills ?? [];
 
-  /// 内部构造函数，主要用于测试或特殊初始化，通常 fromJson 更常用
   // ignore: unused_element
   GameEntry._withId({
     required String id,
@@ -51,12 +48,12 @@ class GameEntry extends GameAtomModel {
 
     this.accountInfo,
     this.progress,
-    List<String>? tags,
+    List<TagFill>? tagFills,
     this.recommendation,
     this.returnBarrier,
     this.hoyoProfile,
     this.linkedPackageName,
-  }) : tags = tags ?? [],
+  }) : tagFills = tagFills ?? [],
        super(
          gameId: id,
          gameAddedInTime: addedDate,
@@ -73,7 +70,7 @@ class GameEntry extends GameAtomModel {
       'isRetired': isRetired,
       'accountInfo': accountInfo?.toJson(),
       'progress': progress,
-      'tags': tags,
+      'tagFills': tagFills.map((tf) => tf.toJson()).toList(),
       'recommendation': recommendation,
       'returnBarrier': returnBarrier,
       'hoyoProfile': hoyoProfile?.toJson(),
@@ -110,8 +107,20 @@ class GameEntry extends GameAtomModel {
       );
     }
 
+    List<TagFill> tagFills;
+    if (json['tagFills'] != null && json['tagFills'] is List) {
+      tagFills = (json['tagFills'] as List)
+          .map((e) => TagFill.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    } else if (json['tags'] != null && json['tags'] is List) {
+      tagFills = (json['tags'] as List)
+          .map((e) => TagFill(sentenceKey: 'tag', tag: e.toString()))
+          .toList();
+    } else {
+      tagFills = [];
+    }
+
     return GameEntry(
-      // 基类字段
       gameId: json['id'] as String?,
       gameAddedInTime: json['gameAddedInTime'] != null
           ? DateTime.parse(json['gameAddedInTime'] as String)
@@ -123,11 +132,10 @@ class GameEntry extends GameAtomModel {
           : null,
       notes: json['notes'] as String?,
 
-      // 子类字段
       isRetired: json['isRetired'] as bool? ?? false,
       accountInfo: accountInfo,
       progress: json['progress'] as String?,
-      tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
+      tagFills: tagFills,
       recommendation: json['recommendation'] as int?,
       returnBarrier: json['returnBarrier'] as int?,
       hoyoProfile: json['hoyoProfile'] != null
