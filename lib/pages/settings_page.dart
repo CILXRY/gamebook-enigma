@@ -665,6 +665,7 @@ class _QRLoginDialogState extends State<_QRLoginDialog> {
       if (!mounted) return;
       _qrUrl = result['url'];
       _statusNotifier.value = '等待扫码...';
+      _canClose = true;
       setState(() {});
       _startPolling(result['ticket']!);
     } catch (e) {

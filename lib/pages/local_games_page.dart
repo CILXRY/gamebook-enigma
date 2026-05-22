@@ -8,6 +8,7 @@ import '../services/package_info_service.dart';
 import '../services/usage_stats_service.dart';
 import '../services/storage_service.dart';
 import 'game_detail_page.dart';
+import 'local_import_confirm_page.dart';
 
 class LocalGamesPage extends StatefulWidget {
   const LocalGamesPage({super.key});
@@ -22,6 +23,9 @@ class _LocalGamesPageState extends State<LocalGamesPage> {
   List<GameEntry> _linkedGames = [];
   String _searchQuery = '';
   bool _loading = true;
+  bool _multiSelectMode = false;
+  final Set<String> _selectedPackages = {};
+  int _sortMode = 0; // 0=名称, 1=使用时长, 2=最近使用, 3=存储大小
 
   @override
   void initState() {
@@ -78,11 +82,38 @@ class _LocalGamesPageState extends State<LocalGamesPage> {
   }
 
   List<AndroidPackageModel> get _filtered {
-    if (_searchQuery.isEmpty) return _packages;
-    final q = _searchQuery.toLowerCase();
-    return _packages.where((p) =>
-        p.appName.toLowerCase().contains(q) ||
-        p.packageName.toLowerCase().contains(q)).toList();
+    List<AndroidPackageModel> list;
+    if (_searchQuery.isEmpty) {
+      list = List.from(_packages);
+    } else {
+      final q = _searchQuery.toLowerCase();
+      list = _packages.where((p) =>
+          p.appName.toLowerCase().contains(q) ||
+          p.packageName.toLowerCase().contains(q)).toList();
+    }
+
+    switch (_sortMode) {
+      case 1:
+        list.sort((a, b) {
+          final sa = _statsFor(a.packageName);
+          final sb = _statsFor(b.packageName);
+          final ta = sa?.totalTimeForegroundMs ?? 0;
+          final tb = sb?.totalTimeForegroundMs ?? 0;
+          return tb.compareTo(ta);
+        });
+      case 2:
+        list.sort((a, b) {
+          final sa = _statsFor(a.packageName);
+          final sb = _statsFor(b.packageName);
+          final la = sa?.lastTimeUsed ?? 0;
+          final lb = sb?.lastTimeUsed ?? 0;
+          return lb.compareTo(la);
+        });
+      default:
+        list.sort((a, b) => a.appName.compareTo(b.appName));
+    }
+
+    return list;
   }
 
   List<MapEntry<AndroidPackageModel, AppUsageStats>> get _topByUsage {
@@ -96,6 +127,34 @@ class _LocalGamesPageState extends State<LocalGamesPage> {
     entries.sort((a, b) =>
         b.value.totalTimeForegroundMs.compareTo(a.value.totalTimeForegroundMs));
     return entries.take(5).toList();
+  }
+
+  Future<void> _importSelected() async {
+    final selected = _packages.where(
+        (p) => _selectedPackages.contains(p.packageName)).toList();
+    if (selected.isEmpty) return;
+
+    if (selected.length == 1) {
+      _linkPackage(selected.first);
+      _exitMultiSelect();
+    } else {
+      final result = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+            builder: (_) => LocalImportConfirmPage(packages: selected)),
+      );
+      if (result == true) {
+        _exitMultiSelect();
+        _loadAll();
+      }
+    }
+  }
+
+  void _exitMultiSelect() {
+    setState(() {
+      _multiSelectMode = false;
+      _selectedPackages.clear();
+    });
   }
 
   Future<void> _linkPackage(AndroidPackageModel pkg) async {
@@ -296,20 +355,52 @@ class _LocalGamesPageState extends State<LocalGamesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('本地游戏'),
+        leading: _multiSelectMode
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _exitMultiSelect,
+              )
+            : null,
+        title: _multiSelectMode
+            ? Text('已选 ${_selectedPackages.length} 项')
+            : const Text('本地游戏'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: '刷新',
-            onPressed: _loadAll,
-          ),
-          if (_linkedGames.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.sync),
-              tooltip: '一键同步',
-              onPressed: _syncAll,
+          if (!_multiSelectMode) ...[
+            PopupMenuButton<int>(
+              icon: const Icon(Icons.sort),
+              tooltip: '排序',
+              onSelected: (v) => setState(() => _sortMode = v),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 0, child: Text('按名称')),
+                PopupMenuItem(value: 1, child: Text('按使用时长')),
+                PopupMenuItem(value: 2, child: Text('按最近使用')),
+              ],
             ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: '刷新',
+              onPressed: _loadAll,
+            ),
+            if (_linkedGames.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.sync),
+                tooltip: '一键同步',
+                onPressed: _syncAll,
+              ),
+          ],
+          IconButton(
+            icon: Icon(_multiSelectMode
+                ? Icons.checklist
+                : Icons.checklist_outlined),
+            tooltip: _multiSelectMode ? '退出多选' : '批量导入',
+            onPressed: () {
+              setState(() {
+                _multiSelectMode = !_multiSelectMode;
+                if (!_multiSelectMode) _selectedPackages.clear();
+              });
+            },
+          ),
         ],
       ),
       body: _loading
@@ -324,35 +415,81 @@ class _LocalGamesPageState extends State<LocalGamesPage> {
                 ],
               ),
             )
-          : Column(
+          : Stack(
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: '搜索应用...',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    onChanged: (v) => setState(() => _searchQuery = v),
-                  ),
-                ),
-                if (_searchQuery.isEmpty && _topByUsage.isNotEmpty)
-                  _buildUsageChart(),
-                Expanded(
-                  child: _filtered.isEmpty
-                      ? const Center(child: Text('没有找到应用'))
-                      : ListView.builder(
-                          itemCount: _filtered.length,
-                          itemBuilder: (context, index) {
-                            final pkg = _filtered[index];
-                            final stats = _statsFor(pkg.packageName);
-                            final linked = _gameFor(pkg.packageName);
-                            return _buildPackageTile(pkg, stats, linked);
-                          },
+                Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: TextField(
+                        decoration: const InputDecoration(
+                          hintText: '搜索应用...',
+                          prefixIcon: Icon(Icons.search),
+                          border: OutlineInputBorder(),
+                          isDense: true,
                         ),
+                        onChanged: (v) => setState(() => _searchQuery = v),
+                      ),
+                    ),
+                    if (_searchQuery.isEmpty &&
+                        _topByUsage.isNotEmpty &&
+                        !_multiSelectMode)
+                      _buildUsageChart(),
+                    Expanded(
+                      child: _filtered.isEmpty
+                          ? const Center(child: Text('没有找到应用'))
+                          : ListView.builder(
+                              padding: EdgeInsets.only(
+                                bottom: _selectedPackages.isNotEmpty ? 80 : 0,
+                              ),
+                              itemCount: _filtered.length,
+                              itemBuilder: (context, index) {
+                                final pkg = _filtered[index];
+                                final stats = _statsFor(pkg.packageName);
+                                final linked = _gameFor(pkg.packageName);
+                                final canSelect =
+                                    _multiSelectMode && linked == null;
+                                return _buildPackageTile(
+                                  pkg,
+                                  stats,
+                                  linked,
+                                  canSelect: canSelect,
+                                  selected: canSelect &&
+                                      _selectedPackages
+                                          .contains(pkg.packageName),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
                 ),
+                if (_selectedPackages.isNotEmpty)
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    bottom: 12,
+                    child: SafeArea(
+                      child: Card(
+                        elevation: 4,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: FilledButton.icon(
+                                  onPressed: _importSelected,
+                                  icon: const Icon(Icons.download, size: 18),
+                                  label: Text(
+                                      '导入 (${_selectedPackages.length})'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
     );
@@ -469,14 +606,23 @@ class _LocalGamesPageState extends State<LocalGamesPage> {
   }
 
   Widget _buildPackageTile(
-      AndroidPackageModel pkg, AppUsageStats? stats, GameEntry? linked) {
+      AndroidPackageModel pkg, AppUsageStats? stats, GameEntry? linked,
+      {bool canSelect = false, bool selected = false}) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: InkWell(
         onTap: () {
-          if (linked != null) {
+          if (canSelect) {
+            setState(() {
+              if (selected) {
+                _selectedPackages.remove(pkg.packageName);
+              } else {
+                _selectedPackages.add(pkg.packageName);
+              }
+            });
+          } else if (linked != null) {
             _openGameDetail(linked);
-          } else {
+          } else if (!_multiSelectMode) {
             _linkPackage(pkg);
           }
         },
@@ -485,6 +631,22 @@ class _LocalGamesPageState extends State<LocalGamesPage> {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
+              if (canSelect)
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Checkbox(
+                    value: selected,
+                    onChanged: (v) {
+                      setState(() {
+                        if (v == true) {
+                          _selectedPackages.add(pkg.packageName);
+                        } else {
+                          _selectedPackages.remove(pkg.packageName);
+                        }
+                      });
+                    },
+                  ),
+                ),
               _buildIcon(pkg),
               const SizedBox(width: 12),
               Expanded(
@@ -564,7 +726,7 @@ class _LocalGamesPageState extends State<LocalGamesPage> {
                   tooltip: '解除关联',
                   onPressed: () => _unlinkPackage(linked),
                 ),
-              if (linked == null)
+              if (linked == null && !_multiSelectMode)
                 TextButton(
                   onPressed: () => _linkPackage(pkg),
                   child: const Text('关联', style: TextStyle(fontSize: 13)),

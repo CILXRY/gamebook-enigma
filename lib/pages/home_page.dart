@@ -145,6 +145,47 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildOverviewCard() {
+    final total = _games.length;
+    final totalSeconds = _games.fold<int>(0, (s, g) => s + g.gamePlayedSeconds);
+    final active = _games.where((g) => !g.isRetired).length;
+    final retired = _games.where((g) => g.isRetired).length;
+
+    final totalHours = (totalSeconds / 3600).toStringAsFixed(1);
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _overviewItem('游戏总数', '$total'),
+            _overviewItem('总时长', '${totalHours}h'),
+            _overviewItem('正在玩', '$active'),
+            _overviewItem('已退坑', '$retired'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _overviewItem(String label, String value) {
+    return Column(
+      children: [
+        Text(value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.primary,
+            )),
+        const SizedBox(height: 2),
+        Text(label,
+            style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -177,17 +218,16 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             )
-          : ListView.builder(
+          : ListView(
               padding: const EdgeInsets.all(8),
-              itemCount: _games.length,
-              itemBuilder: (context, index) {
-                final game = _games[index];
-                return _GameCard(
-                  game: game,
-                  onTap: () => _openDetail(game),
-                  onLongPress: () => _deleteGame(game),
-                );
-              },
+              children: [
+                _buildOverviewCard(),
+                ..._games.map((game) => _GameCard(
+                      game: game,
+                      onTap: () => _openDetail(game),
+                      onLongPress: () => _deleteGame(game),
+                    )),
+              ],
             ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addGame,
