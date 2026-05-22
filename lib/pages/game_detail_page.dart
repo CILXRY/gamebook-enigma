@@ -303,19 +303,21 @@ class _GameDetailPageState extends State<GameDetailPage> {
     return Column(
       children: [
         _buildHero(),
-        DefaultTabController(
-          length: tabNames.length,
-          child: Column(
-            children: [
-              TabBar(
-                tabs: tabNames.map((n) => Tab(text: n)).toList(),
-                labelColor: Theme.of(context).colorScheme.primary,
-                unselectedLabelColor: Colors.grey,
-              ),
-              Expanded(
-                child: TabBarView(children: tabChildren),
-              ),
-            ],
+        Expanded(
+          child: DefaultTabController(
+            length: tabNames.length,
+            child: Column(
+              children: [
+                TabBar(
+                  tabs: tabNames.map((n) => Tab(text: n)).toList(),
+                  labelColor: Theme.of(context).colorScheme.primary,
+                  unselectedLabelColor: Colors.grey,
+                ),
+                Expanded(
+                  child: TabBarView(children: tabChildren),
+                ),
+              ],
+            ),
           ),
         ),
       ],
