@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../constants/preset_tags.dart';
+import '../models/android_package_model.dart';
+import '../models/game_atom_model.dart';
 import '../models/game_entry.dart';
+import '../services/package_info_service.dart';
 import '../widgets/resources_editor.dart';
 
 String _formatDate(DateTime date) {
@@ -31,7 +34,9 @@ class _AddGamePageState extends State<AddGamePage> {
   int? _returnBarrier;
   final _tagInputController = TextEditingController();
 
-  late final GameEntry _stub = GameEntry(name: '');
+  AndroidPackageModel? _linkedPackage;
+
+  late final GameEntry _stub = GameEntry(gameName: '');
 
   @override
   void dispose() {
@@ -69,6 +74,25 @@ class _AddGamePageState extends State<AddGamePage> {
     }
   }
 
+  Future<void> _pickPackage() async {
+    final packages = await PackageInfoService.getInstalledPackages();
+    if (!mounted) return;
+    final selected = await showDialog<AndroidPackageModel>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('选择本地应用'),
+        children: packages.map((p) => SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, p),
+              child: Text('${p.appName}\n${p.packageName}',
+                  style: const TextStyle(fontSize: 13)),
+            )).toList(),
+      ),
+    );
+    if (selected != null) {
+      setState(() => _linkedPackage = selected);
+    }
+  }
+
   void _save() {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
@@ -79,13 +103,13 @@ class _AddGamePageState extends State<AddGamePage> {
     }
 
     final game = GameEntry(
-      name: name,
+      gameName: name,
       characterName:
           _charNameController.text.trim().isEmpty ? null : _charNameController.text.trim(),
       server: _serverController.text.trim().isEmpty ? null : _serverController.text.trim(),
       level: int.tryParse(_levelController.text.trim()),
-      totalPlayHours: double.tryParse(_playHoursController.text.trim()),
-      lastPlayed: _lastPlayed,
+      gamePlayedSeconds: GameAtomModel.playHoursToSeconds(_playHoursController.text.trim()),
+      gameLastLaunched: _lastPlayed,
       isRetired: _isRetired,
       progress:
           _progressController.text.trim().isEmpty ? null : _progressController.text.trim(),
@@ -95,6 +119,7 @@ class _AddGamePageState extends State<AddGamePage> {
       spending: _spending,
       returnBarrier: _returnBarrier,
       resources: Map.from(_stub.resources),
+      linkedPackageName: _linkedPackage?.packageName,
     );
 
     Navigator.pop(context, game);
@@ -230,6 +255,26 @@ class _AddGamePageState extends State<AddGamePage> {
               subtitle: Text(_isRetired ? '已标记为退坑' : '还在玩'),
               value: _isRetired,
               onChanged: (v) => setState(() => _isRetired = v),
+            ),
+
+            const SizedBox(height: 24),
+            _sectionLabel('系统集成'),
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: _pickPackage,
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: '关联本地应用',
+                  suffixIcon: Icon(Icons.android),
+                ),
+                child: Text(
+                  _linkedPackage?.appName ?? '点击选择已安装的应用（可选）',
+                  style: TextStyle(
+                    color: _linkedPackage != null ? null : Colors.grey,
+                  ),
+                ),
+              ),
             ),
 
             const SizedBox(height: 24),

@@ -1,8 +1,13 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../models/game_entry.dart';
 import '../services/storage_service.dart';
+import '../services/package_info_service.dart';
 import 'add_game_page.dart';
 import 'game_detail_page.dart';
+import 'import_hoyo_page.dart';
+import 'local_games_page.dart';
+import 'settings_page.dart';
 
 String _formatDate(DateTime date) {
   return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -36,15 +41,62 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _addGame() async {
-    final game = await Navigator.push<GameEntry>(
-      context,
-      MaterialPageRoute(builder: (_) => const AddGamePage()),
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.cloud_download_outlined),
+              title: const Text('从米游社导入'),
+              subtitle: const Text('自动获取游戏账号信息'),
+              onTap: () => Navigator.pop(ctx, 'import'),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.edit_note),
+              title: const Text('自定义游戏'),
+              subtitle: const Text('手动填写所有字段'),
+              onTap: () => Navigator.pop(ctx, 'custom'),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.phone_android),
+              title: const Text('从本地应用导入'),
+              subtitle: const Text('扫描已安装游戏并关联'),
+              onTap: () => Navigator.pop(ctx, 'local'),
+            ),
+          ],
+        ),
+      ),
     );
-    if (game != null) {
-      setState(() {
-        _games.add(game);
-      });
-      _saveGames();
+
+    if (choice == null) return;
+
+    if (choice == 'import') {
+      final game = await Navigator.push<GameEntry>(
+        context,
+        MaterialPageRoute(builder: (_) => const ImportHoyoPage()),
+      );
+      if (game != null) {
+        setState(() => _games.add(game));
+        _saveGames();
+      }
+    } else if (choice == 'local') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const LocalGamesPage()),
+      ).then((_) => _loadGames());
+    } else {
+      final game = await Navigator.push<GameEntry>(
+        context,
+        MaterialPageRoute(builder: (_) => const AddGamePage()),
+      );
+      if (game != null) {
+        setState(() => _games.add(game));
+        _saveGames();
+      }
     }
   }
 
@@ -71,7 +123,7 @@ class _HomePageState extends State<HomePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('删除游戏'),
-        content: Text('确定要删除「${game.name}」吗？此操作不可撤销。'),
+        content: Text('确定要删除「${game.gameName}」吗？此操作不可撤销。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -99,6 +151,16 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: const Text('游戏本子'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: '设置',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsPage()),
+            ),
+          ),
+        ],
       ),
       body: _games.isEmpty
           ? const Center(
@@ -136,6 +198,38 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
+class _AppIcon extends StatelessWidget {
+  final String packageName;
+
+  const _AppIcon({required this.packageName});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String>(
+      future: PackageInfoService.getAppIcon(packageName),
+      builder: (context, snapshot) {
+        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+          try {
+            final bytes = base64Decode(snapshot.data!);
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.memory(bytes, width: 36, height: 36,
+                  errorBuilder: (_, _, _) => _fallback()),
+            );
+          } catch (_) {
+            return _fallback();
+          }
+        }
+        return _fallback();
+      },
+    );
+  }
+
+  Widget _fallback() {
+    return const Icon(Icons.sports_esports, size: 36, color: Colors.grey);
+  }
+}
+
 class _GameCard extends StatelessWidget {
   final GameEntry game;
   final VoidCallback onTap;
@@ -159,13 +253,16 @@ class _GameCard extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              Icon(
-                game.isRetired ? Icons.bedtime : Icons.sports_esports,
-                color: game.isRetired
-                    ? Colors.grey
-                    : Theme.of(context).colorScheme.primary,
-                size: 36,
-              ),
+              if (game.linkedPackageName != null)
+                _AppIcon(packageName: game.linkedPackageName!)
+              else
+                Icon(
+                  game.isRetired ? Icons.bedtime : Icons.sports_esports,
+                  color: game.isRetired
+                      ? Colors.grey
+                      : Theme.of(context).colorScheme.primary,
+                  size: 36,
+                ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -175,7 +272,7 @@ class _GameCard extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            game.name,
+                            game.gameName,
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -227,8 +324,10 @@ class _GameCard extends StatelessWidget {
                     Text(
                       [
                         if (game.server != null) game.server!,
-                        if (game.lastPlayed != null)
-                          '上次: ${_formatDate(game.lastPlayed!)}',
+                        if (game.gamePlayedSeconds > 0)
+                          '${(game.gamePlayedSeconds / 3600).toStringAsFixed(1)} 小时',
+                        if (game.gameLastLaunched != null)
+                          '上次: ${_formatDate(game.gameLastLaunched!)}',
                         if (game.characterName != null) game.characterName!,
                       ].join('  ·  '),
                       style: TextStyle(fontSize: 13, color: Colors.grey[600]),
