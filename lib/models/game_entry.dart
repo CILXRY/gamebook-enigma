@@ -1,20 +1,17 @@
 import 'game_atom_model.dart';
+import 'account_info.dart';
 import 'mihoyo/hoyo_game_profile.dart';
 
 class GameEntry extends GameAtomModel {
   // --- GameEntry Specific Fields ---
   bool isRetired;
 
-  String? characterName;
-  int? level;
-  String? server;
+  AccountInfo? accountInfo;
 
-  Map<String, dynamic> resources;
   String? progress;
 
   List<String> tags;
   int? recommendation;
-  int? spending;
   int? returnBarrier;
 
   HoyoGameProfile? hoyoProfile;
@@ -32,19 +29,14 @@ class GameEntry extends GameAtomModel {
 
     // 子类字段
     this.isRetired = false,
-    this.characterName,
-    this.level,
-    this.server,
-    Map<String, dynamic>? resources,
+    this.accountInfo,
     this.progress,
     List<String>? tags,
     this.recommendation,
-    this.spending,
     this.returnBarrier,
     this.hoyoProfile,
     this.linkedPackageName,
-  }) : resources = resources ?? {},
-       tags = tags ?? [];
+  }) : tags = tags ?? [];
 
   /// 内部构造函数，主要用于测试或特殊初始化，通常 fromJson 更常用
   // ignore: unused_element
@@ -57,19 +49,14 @@ class GameEntry extends GameAtomModel {
     this.isRetired = false,
     super.notes,
 
-    this.characterName,
-    this.level,
-    this.server,
-    Map<String, dynamic>? resources,
+    this.accountInfo,
     this.progress,
     List<String>? tags,
     this.recommendation,
-    this.spending,
     this.returnBarrier,
     this.hoyoProfile,
     this.linkedPackageName,
-  }) : resources = resources ?? {},
-       tags = tags ?? [],
+  }) : tags = tags ?? [],
        super(
          gameId: id,
          gameAddedInTime: addedDate,
@@ -80,24 +67,14 @@ class GameEntry extends GameAtomModel {
 
   @override
   Map<String, dynamic> toJson() {
-    // 获取基类 JSON
     final json = super.toBaseJson();
-
-    // 合并子类特有字段
-    // 注意：基类 toBaseJson 返回的是 'gameName', 'gamePlayedHours' 等 key
-    // 如果你的 API 需要扁平化的 'name', 'totalPlayHours'，你需要在这里做 key 的重命名或映射
-    // 下面假设保持基类的 key 命名风格，或者你可以根据需求调整 key 名称
 
     json.addAll({
       'isRetired': isRetired,
-      'characterName': characterName,
-      'level': level,
-      'server': server,
-      'resources': resources,
+      'accountInfo': accountInfo?.toJson(),
       'progress': progress,
       'tags': tags,
       'recommendation': recommendation,
-      'spending': spending,
       'returnBarrier': returnBarrier,
       'hoyoProfile': hoyoProfile?.toJson(),
       'linkedPackageName': linkedPackageName,
@@ -117,6 +94,22 @@ class GameEntry extends GameAtomModel {
       gamePlayedSeconds = rawPlayed.toInt();
     }
 
+    AccountInfo? accountInfo;
+    if (json['accountInfo'] is Map<String, dynamic>) {
+      accountInfo = AccountInfo.fromJson(json['accountInfo'] as Map<String, dynamic>);
+    } else if (json['characterName'] != null ||
+        json['level'] != null ||
+        json['server'] != null ||
+        json['spending'] != null) {
+      accountInfo = AccountInfo(
+        characterName: json['characterName'] as String?,
+        level: json['level'] as int?,
+        server: json['server'] as String?,
+        resources: (json['resources'] as Map<String, dynamic>?) ?? {},
+        spending: json['spending'] as int?,
+      );
+    }
+
     return GameEntry(
       // 基类字段
       gameId: json['id'] as String?,
@@ -132,14 +125,10 @@ class GameEntry extends GameAtomModel {
 
       // 子类字段
       isRetired: json['isRetired'] as bool? ?? false,
-      characterName: json['characterName'] as String?,
-      level: json['level'] as int?,
-      server: json['server'] as String?,
-      resources: (json['resources'] as Map<String, dynamic>?) ?? {},
+      accountInfo: accountInfo,
       progress: json['progress'] as String?,
       tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
       recommendation: json['recommendation'] as int?,
-      spending: json['spending'] as int?,
       returnBarrier: json['returnBarrier'] as int?,
       hoyoProfile: json['hoyoProfile'] != null
           ? HoyoGameProfile.fromJson(

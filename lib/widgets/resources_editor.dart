@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import '../models/game_entry.dart';
 
 class ResourcesEditor extends StatefulWidget {
-  final GameEntry game;
+  final Map<String, dynamic> initialResources;
   final bool enabled;
+  final ValueChanged<Map<String, dynamic>>? onChanged;
 
   const ResourcesEditor({
     super.key,
-    required this.game,
+    this.initialResources = const {},
     this.enabled = true,
+    this.onChanged,
   });
 
   @override
@@ -21,7 +22,7 @@ class _ResourcesEditorState extends State<ResourcesEditor> {
   @override
   void initState() {
     super.initState();
-    _entries = widget.game.resources.entries
+    _entries = widget.initialResources.entries
         .map((e) => _ResourceEntry(
               keyController: TextEditingController(text: e.key),
               valueController: TextEditingController(text: e.value.toString()),
@@ -38,14 +39,15 @@ class _ResourcesEditorState extends State<ResourcesEditor> {
     super.dispose();
   }
 
-  void _syncToGame() {
-    widget.game.resources = {
+  void _sync() {
+    final map = <String, dynamic>{
       for (final e in _entries)
         if (e.keyController.text.trim().isNotEmpty)
           e.keyController.text.trim(): int.tryParse(e.valueController.text) ??
               double.tryParse(e.valueController.text) ??
               e.valueController.text,
     };
+    widget.onChanged?.call(map);
   }
 
   void _addRow() {
@@ -63,7 +65,7 @@ class _ResourcesEditorState extends State<ResourcesEditor> {
       _entries[index].valueController.dispose();
       _entries.removeAt(index);
     });
-    _syncToGame();
+    _sync();
   }
 
   @override
@@ -86,7 +88,7 @@ class _ResourcesEditorState extends State<ResourcesEditor> {
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
-                      onChanged: (_) => _syncToGame(),
+                      onChanged: (_) => _sync(),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -100,7 +102,7 @@ class _ResourcesEditorState extends State<ResourcesEditor> {
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
-                      onChanged: (_) => _syncToGame(),
+                      onChanged: (_) => _sync(),
                     ),
                   ),
                   SizedBox(

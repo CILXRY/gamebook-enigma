@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/account_info.dart';
 import '../models/game_entry.dart';
 import '../models/mihoyo/collection_stats.dart';
 import '../models/mihoyo/hoyo_game_profile.dart';
@@ -59,9 +60,11 @@ class _ImportHoyoPageState extends State<ImportHoyoPage> {
   void _createFromRole(UserGameRole role) {
     final game = GameEntry(
       gameName: role.gameName,
-      characterName: role.nickname.isNotEmpty ? role.nickname : null,
-      server: role.regionName.isNotEmpty ? role.regionName : null,
-      level: role.level,
+      accountInfo: AccountInfo(
+        characterName: role.nickname.isNotEmpty ? role.nickname : null,
+        server: role.regionName.isNotEmpty ? role.regionName : null,
+        level: role.level,
+      ),
       hoyoProfile: HoyoGameProfile(
         gameBiz: role.gameBiz,
         gameName: role.gameName,

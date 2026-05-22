@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/preset_tags.dart';
+import '../models/account_info.dart';
 import '../models/android_package_model.dart';
 import '../models/game_atom_model.dart';
 import '../models/game_entry.dart';
@@ -32,11 +33,11 @@ class _AddGamePageState extends State<AddGamePage> {
   int? _recommendation;
   int? _spending;
   int? _returnBarrier;
+  bool _hasAccount = false;
   final _tagInputController = TextEditingController();
 
   AndroidPackageModel? _linkedPackage;
-
-  late final GameEntry _stub = GameEntry(gameName: '');
+  Map<String, dynamic> _resources = {};
 
   @override
   void dispose() {
@@ -102,12 +103,25 @@ class _AddGamePageState extends State<AddGamePage> {
       return;
     }
 
+    AccountInfo? accountInfo;
+    if (_hasAccount) {
+      final charName = _charNameController.text.trim().isEmpty ? null : _charNameController.text.trim();
+      final server = _serverController.text.trim().isEmpty ? null : _serverController.text.trim();
+      final level = int.tryParse(_levelController.text.trim());
+      if (charName != null || server != null || level != null || _spending != null || _resources.isNotEmpty) {
+        accountInfo = AccountInfo(
+          characterName: charName,
+          server: server,
+          level: level,
+          spending: _spending,
+          resources: Map.from(_resources),
+        );
+      }
+    }
+
     final game = GameEntry(
       gameName: name,
-      characterName:
-          _charNameController.text.trim().isEmpty ? null : _charNameController.text.trim(),
-      server: _serverController.text.trim().isEmpty ? null : _serverController.text.trim(),
-      level: int.tryParse(_levelController.text.trim()),
+      accountInfo: accountInfo,
       gamePlayedSeconds: GameAtomModel.playHoursToSeconds(_playHoursController.text.trim()),
       gameLastLaunched: _lastPlayed,
       isRetired: _isRetired,
@@ -116,9 +130,7 @@ class _AddGamePageState extends State<AddGamePage> {
       notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
       tags: List.from(_tags),
       recommendation: _recommendation,
-      spending: _spending,
       returnBarrier: _returnBarrier,
-      resources: Map.from(_stub.resources),
       linkedPackageName: _linkedPackage?.packageName,
     );
 
@@ -159,56 +171,92 @@ class _AddGamePageState extends State<AddGamePage> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _charNameController,
-              decoration: const InputDecoration(
-                labelText: '角色名 / 游戏内ID',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _serverController,
-              decoration: const InputDecoration(
-                labelText: '区服',
-                border: OutlineInputBorder(),
-              ),
-            ),
 
             const SizedBox(height: 24),
-            _sectionLabel('账号数据'),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _levelController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: '等级',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _playHoursController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: '游戏时长 (小时)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-              ],
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('有账号体系'),
+              subtitle: Text(_hasAccount ? '显示角色名/等级/资源等' : '纯单机游戏'),
+              value: _hasAccount,
+              onChanged: (v) => setState(() {
+                _hasAccount = v;
+                if (!v) {
+                  _spending = null;
+                  _charNameController.clear();
+                  _serverController.clear();
+                  _levelController.clear();
+                  _resources = {};
+                }
+              }),
             ),
-            const SizedBox(height: 16),
-            const Text('资源',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-            const SizedBox(height: 8),
-            ResourcesEditor(game: _stub, enabled: true),
+            if (_hasAccount) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: _charNameController,
+                decoration: const InputDecoration(
+                  labelText: '角色名 / 游戏内ID',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _serverController,
+                decoration: const InputDecoration(
+                  labelText: '区服',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+              _sectionLabel('账号数据'),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _levelController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: '等级',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _playHoursController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: '游戏时长 (小时)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text('资源',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              const SizedBox(height: 8),
+              ResourcesEditor(
+                initialResources: _resources,
+                enabled: true,
+                onChanged: (v) {
+                  setState(() => _resources = v);
+                },
+              ),
+            ] else ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: _playHoursController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '游戏时长 (小时)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
 
             const SizedBox(height: 24),
             _sectionLabel('主观评价'),
@@ -221,13 +269,15 @@ class _AddGamePageState extends State<AddGamePage> {
               1: '👎 不推荐',
             }, _recommendation, (v) => setState(() => _recommendation = v)),
             const SizedBox(height: 16),
-            _buildChoiceField('氪金程度', {
-              0: '🆓 零氪',
-              1: '☕ 微氪',
-              2: '💰 中氪',
-              3: '🐳 重氪',
-            }, _spending, (v) => setState(() => _spending = v)),
-            const SizedBox(height: 16),
+            if (_hasAccount) ...[
+              _buildChoiceField('氪金程度', {
+                0: '🆓 零氪',
+                1: '☕ 微氪',
+                2: '💰 中氪',
+                3: '🐳 重氪',
+              }, _spending, (v) => setState(() => _spending = v)),
+              const SizedBox(height: 16),
+            ],
             _buildChoiceField('回流阻力', {
               0: '随时可回',
               1: '需要适应一阵',

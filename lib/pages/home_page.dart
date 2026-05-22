@@ -324,10 +324,10 @@ class _GameCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (game.level != null) ...[
+                        if (game.accountInfo?.level != null) ...[
                           const SizedBox(width: 8),
                           Chip(
-                            label: Text('Lv.${game.level}',
+                            label: Text('Lv.${game.accountInfo?.level}',
                                 style: const TextStyle(fontSize: 12)),
                             materialTapTargetSize:
                                 MaterialTapTargetSize.shrinkWrap,
@@ -363,12 +363,12 @@ class _GameCard extends StatelessWidget {
                       ),
                     Text(
                       [
-                        if (game.server != null) game.server!,
+                        if (game.accountInfo?.server != null) game.accountInfo!.server!,
                         if (game.gamePlayedSeconds > 0)
                           '${(game.gamePlayedSeconds / 3600).toStringAsFixed(1)} 小时',
                         if (game.gameLastLaunched != null)
                           '上次: ${_formatDate(game.gameLastLaunched!)}',
-                        if (game.characterName != null) game.characterName!,
+                        if (game.accountInfo?.characterName != null) game.accountInfo!.characterName!,
                       ].join('  ·  '),
                       style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                       overflow: TextOverflow.ellipsis,
