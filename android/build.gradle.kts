@@ -1,7 +1,19 @@
+buildscript {
+    repositories {
+        // 阿里云镜像
+        maven("https://maven.aliyun.com/repository/google")
+        maven("https://maven.aliyun.com/repository/public")
+        maven("https://maven.aliyun.com/repository/jetbrains")
+    }
+}
+
 allprojects {
     repositories {
-        google()
-        mavenCentral()
+        maven("https://maven.aliyun.com/repository/google")
+        maven("https://maven.aliyun.com/repository/public")
+        maven("https://maven.aliyun.com/repository/jetbrains")
+        // google()
+        // mavenCentral()
     }
 }
 
