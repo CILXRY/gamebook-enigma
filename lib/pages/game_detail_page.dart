@@ -288,34 +288,150 @@ class _GameDetailPageState extends State<GameDetailPage> {
   // ── view mode ─────────────────────────────────────────────────────
 
   Widget _buildViewMode() {
+    final tabNames = <String>[];
+    final tabChildren = <Widget>[];
+
+    if (_game.accountInfo != null || _game.hoyoProfile != null) {
+      tabNames.add('账号');
+      tabChildren.add(_buildAccountTab());
+    }
+    tabNames.add('评价');
+    tabChildren.add(_buildRatingTab());
+    tabNames.add('更多');
+    tabChildren.add(_buildMoreTab());
+
+    return Column(
+      children: [
+        _buildHero(),
+        DefaultTabController(
+          length: tabNames.length,
+          child: Column(
+            children: [
+              TabBar(
+                tabs: tabNames.map((n) => Tab(text: n)).toList(),
+                labelColor: Theme.of(context).colorScheme.primary,
+                unselectedLabelColor: Colors.grey,
+              ),
+              Expanded(
+                child: TabBarView(children: tabChildren),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHero() {
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                if (_pkgIcon != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.memory(
+                        base64Decode(_pkgIcon!),
+                        width: 56,
+                        height: 56,
+                        errorBuilder: (_, _, _) => Icon(
+                          _game.isRetired ? Icons.bedtime : Icons.sports_esports,
+                          size: 56,
+                          color: _game.isRetired ? Colors.grey : Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Icon(
+                      _game.isRetired ? Icons.bedtime : Icons.sports_esports,
+                      size: 56,
+                      color: _game.isRetired ? Colors.grey : Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _game.gameName,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          decoration: _game.isRetired ? TextDecoration.lineThrough : null,
+                          color: _game.isRetired ? Colors.grey : null,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      if (_game.accountInfo != null) ...[
+                        Text(
+                          [
+                            if (_game.accountInfo!.characterName != null)
+                              _game.accountInfo!.characterName!,
+                            if (_game.accountInfo!.level != null)
+                              'Lv.${_game.accountInfo!.level}',
+                            if (_game.accountInfo!.server != null)
+                              _game.accountInfo!.server!,
+                          ].join('  ·  '),
+                          style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        ),
+                        const SizedBox(height: 2),
+                      ],
+                      Text(
+                        [
+                          if (_game.gamePlayedSeconds > 0)
+                            '${(_game.gamePlayedSeconds / 3600).toStringAsFixed(1)} 小时',
+                          if (_game.gameLastLaunched != null)
+                            '上次: ${_formatDate(_game.gameLastLaunched!)}',
+                        ].join('  ·  '),
+                        style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (_game.tags.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: _game.tags.map((t) => Chip(
+                    label: Text(t, style: const TextStyle(fontSize: 12)),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+                  )).toList(),
+                ),
+              ),
+            ],
+            if (_game.isRetired) ...[
+              const SizedBox(height: 10),
+              _retiredBanner(),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAccountTab() {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        if (_game.isRetired) _retiredBanner(),
-
-        _sectionLabel('基本信息'),
-        const SizedBox(height: 8),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _infoRow('游戏名称', _game.gameName),
-                if (_game.accountInfo != null) ...[
-                  const Divider(height: 20),
-                  _infoRow('角色名', _game.accountInfo!.characterName ?? '-'),
-                  const Divider(height: 20),
-                  _infoRow('区服', _game.accountInfo!.server ?? '-'),
-                ],
-              ],
-            ),
-          ),
-        ),
-
         if (_game.accountInfo != null) ...[
-          const SizedBox(height: 20),
-          _sectionLabel('账号数据'),
+          _sectionLabel('账号信息'),
           const SizedBox(height: 8),
           Card(
             child: Padding(
@@ -323,38 +439,49 @@ class _GameDetailPageState extends State<GameDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(child: _infoRow('等级', _game.accountInfo!.level?.toString() ?? '-')),
-                      Expanded(child: _infoRow('游戏时长', _game.gamePlayedSeconds > 0 ? '${(_game.gamePlayedSeconds / 3600).toStringAsFixed(1)} 小时' : '-')),
-                    ],
-                  ),
-                  const Divider(height: 20),
-                  const Text('资源', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                  const SizedBox(height: 8),
-                  ResourcesEditor(initialResources: _game.accountInfo!.resources, enabled: false),
+                  if (_game.accountInfo!.characterName != null) ...[
+                    _infoRow('角色名', _game.accountInfo!.characterName!),
+                    const Divider(height: 20),
+                  ],
+                  if (_game.accountInfo!.server != null) ...[
+                    _infoRow('区服', _game.accountInfo!.server!),
+                    const Divider(height: 20),
+                  ],
+                  if (_game.accountInfo!.level != null) ...[
+                    _infoRow('等级', '${_game.accountInfo!.level}'),
+                    const Divider(height: 20),
+                  ],
+                  if (_game.accountInfo!.spending != null) ...[
+                    _infoRow('氪金程度', _spendingText(_game.accountInfo!.spending)),
+                    const Divider(height: 20),
+                  ],
+                  if (_game.accountInfo!.resources.isNotEmpty) ...[
+                    const Text('资源', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                    const SizedBox(height: 8),
+                    ResourcesEditor(initialResources: _game.accountInfo!.resources, enabled: false),
+                  ],
                 ],
               ),
             ),
           ),
-        ] else ...[
-          const SizedBox(height: 20),
-          _sectionLabel('游戏时间'),
-          const SizedBox(height: 8),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: _infoRow('游戏时长', _game.gamePlayedSeconds > 0 ? '${(_game.gamePlayedSeconds / 3600).toStringAsFixed(1)} 小时' : '-'),
-            ),
-          ),
         ],
-
-        const SizedBox(height: 20),
-        if (_game.hoyoProfile != null)
+        if (_game.hoyoProfile != null) ...[
+          const SizedBox(height: 20),
           ..._buildHoyoSection(_game.hoyoProfile!),
-        if (_game.hoyoProfile == null)
+        ],
+        if (_game.hoyoProfile == null && _game.accountInfo != null) ...[
+          const SizedBox(height: 12),
           _buildBindHoyoCard(),
-        const SizedBox(height: 20),
+        ],
+        const SizedBox(height: 40),
+      ],
+    );
+  }
+
+  Widget _buildRatingTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
         _sectionLabel('主观评价'),
         const SizedBox(height: 8),
         Card(
@@ -365,10 +492,6 @@ class _GameDetailPageState extends State<GameDetailPage> {
               children: [
                 _infoRow('推荐度', _recText(_game.recommendation)),
                 const Divider(height: 20),
-                if (_game.accountInfo != null) ...[
-                  _infoRow('氪金程度', _spendingText(_game.accountInfo!.spending)),
-                  const Divider(height: 20),
-                ],
                 _infoRow('回流阻力', _barrierText(_game.returnBarrier)),
                 if (_game.tags.isNotEmpty) ...[
                   const Divider(height: 20),
@@ -377,16 +500,25 @@ class _GameDetailPageState extends State<GameDetailPage> {
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
-                    children: _game.tags.map((t) => Chip(label: Text(t, style: const TextStyle(fontSize: 13)))).toList(),
+                    children: _game.tags.map((t) => Chip(
+                      label: Text(t, style: const TextStyle(fontSize: 13)),
+                    )).toList(),
                   ),
                 ],
               ],
             ),
           ),
         ),
+        const SizedBox(height: 40),
+      ],
+    );
+  }
 
-        const SizedBox(height: 20),
-        _sectionLabel('游戏状态'),
+  Widget _buildMoreTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _sectionLabel('游戏进度'),
         const SizedBox(height: 8),
         Card(
           child: Padding(
@@ -394,14 +526,17 @@ class _GameDetailPageState extends State<GameDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _infoRow('上次游玩', _game.gameLastLaunched != null ? _formatDate(_game.gameLastLaunched!) : '-'),
+                _infoRow('当前进度', _game.progress ?? '-'),
+                if (_game.notes != null) ...[
+                  const Divider(height: 20),
+                  _infoRow('备注', _game.notes!),
+                ],
               ],
             ),
           ),
         ),
-
-        const SizedBox(height: 20),
         if (_game.linkedPackageName != null) ...[
+          const SizedBox(height: 20),
           Row(
             children: [
               Expanded(child: _sectionLabel('系统数据')),
@@ -465,24 +600,8 @@ class _GameDetailPageState extends State<GameDetailPage> {
               ),
             ),
           ),
-          const SizedBox(height: 20),
         ],
-        _sectionLabel('其他'),
-        const SizedBox(height: 8),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _infoRow('当前进度', _game.progress ?? '-'),
-                if (_game.progress != null) const Divider(height: 20),
-                _infoRow('备注', _game.notes ?? '-'),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 80),
+        const SizedBox(height: 40),
       ],
     );
   }
